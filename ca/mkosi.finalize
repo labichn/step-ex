@@ -75,8 +75,9 @@ systemd-nspawn \
   --as-pid2 sh -c \
   'cp "$STEPPATH"/certs/ssh_user_ca_key.pub /etc/ssh/'
 
-echo "You'll need to enter this manually 3x: ${PASS_CA_KEY}"
+#echo "You'll need to enter this manually 3x: ${PASS_CA_KEY}"
 systemd-nspawn \
+  --set-credential=keypass:"$PASS_CA_KEY" \
   --set-credential=jwkpass:"$PASS_CA_JWK" \
   --setenv=CA_NAME="$CA_NAME" \
   --setenv=CA_DOMAIN="$CA_DOMAIN" \
@@ -84,8 +85,13 @@ systemd-nspawn \
   --setenv=STEPPATH=/var/lib/step-ca \
   --directory="$BUILDROOT" \
   --as-pid2 sh -c \
-  'step-cli ssh certificate "${CA_NAME}" /etc/ssh/ssh_host_ecdsa_key \
-     --host --insecure --no-password --offline --force \
-     --not-after "${NOT_AFTER}" \
-     --provisioner jwk \
-     --provisioner-password-file "${CREDENTIALS_DIRECTORY}"/jwkpass'
+  'mv $STEPPATH/config/ca.json $STEPPATH/config/ca.json.orig \
+   && jq ". += {\"password\": \"$(<"${CREDENTIALS_DIRECTORY}"/keypass)\"}" \
+       <$STEPPATH/config/ca.json.orig \
+       >$STEPPATH/config/ca.json \
+   && step-cli ssh certificate "${CA_NAME}" /etc/ssh/ssh_host_ecdsa_key \
+        --host --insecure --no-password --offline --force \
+        --not-after "${NOT_AFTER}" \
+        --provisioner jwk \
+        --provisioner-password-file "${CREDENTIALS_DIRECTORY}"/jwkpass \
+   && mv $STEPPATH/config/ca.json.orig $STEPPATH/config/ca.json'

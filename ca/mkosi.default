@@ -8,7 +8,7 @@ Hostname=ca
 Output=ca.raw
 
 [Packages]
-Packages=step-cli,step-ca,openssh
+Packages=step-cli,step-ca,openssh,jq
 Cache=/tmp/mkosi.cache
 
 [Host]
