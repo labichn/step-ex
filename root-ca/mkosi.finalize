@@ -1,0 +1,9 @@
+#!/bin/bash
+systemd-nspawn \
+  --set-credential=keypass:"$PASS_ROOT_KEY" \
+  --directory="$BUILDROOT" \
+  --as-pid2 bash -c \
+  'step-cli certificate create \
+     --profile root-ca \
+     --password-file "${CREDENTIALS_DIRECTORY}/keypass" \
+     "Root CA" /root/root_ca.crt /root/root_ca.key'

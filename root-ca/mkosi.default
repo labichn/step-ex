@@ -1,0 +1,21 @@
+[Distribution]
+Distribution=arch
+
+[Output]
+Format=gpt_btrfs
+Bootable=yes
+Hostname=root-ca
+Output=root-ca.raw
+KernelCommandLine=ro systemd.volatile=overlay
+Verity=yes
+
+[Packages]
+Packages=step-cli
+Cache=/tmp/mkosi.cache
+
+[Host]
+NetworkVeth=yes
+QemuHeadless=yes
+
+[Validation]
+Autologin=yes

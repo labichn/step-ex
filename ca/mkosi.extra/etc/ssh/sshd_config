@@ -1,0 +1,8 @@
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostCertificate /etc/ssh/ssh_host_ecdsa_key-cert.pub
+TrustedUserCAKeys /etc/ssh/ssh_user_ca_key.pub
+AuthorizedPrincipalsFile /etc/ssh/authorized_principals/%u
+AuthenticationMethods publickey
+PasswordAuthentication no
+IgnoreUserKnownHosts yes
+UsePAM yes

@@ -1,0 +1,11 @@
+[Unit]
+Description=SSH Key Generation
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key.pub
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key-cert.pub
+
+[Service]
+ExecStart=/usr/bin/echo "These should have been generated before first boot!"
+ExecStart=/usr/bin/exit 1
+Type=oneshot
+RemainAfterExit=yes

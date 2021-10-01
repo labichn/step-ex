@@ -1,0 +1,91 @@
+#!/bin/bash
+set -eEvo pipefail
+
+systemd-nspawn \
+  --set-credential=keypass:"$PASS_CA_KEY" \
+  --setenv=CA_DNS="--dns ${CA_NAME} --dns ${CA_NAME}.${CA_DOMAIN} --dns ${CA_IPv4} --dns [${CA_IPv6}]" \
+  --setenv=CA_NAME="$CA_NAME" \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'step-cli ca init ${CA_DNS} \
+     --ssh \
+     --deployment-type=standalone \
+     --address=:443 \
+     --name="${CA_NAME}" \
+     --provisioner="this-provisioner-is-not-used" \
+     --password-file="${CREDENTIALS_DIRECTORY}"/keypass \
+   && step-cli ca provisioner remove this-provisioner-is-not-used --all \
+   && rm "$STEPPATH"/{certs,secrets}/{root,intermediate}_*'
+
+systemd-nspawn \
+  --set-credential=keypass:"${PASS_CA_KEY}" \
+  --setenv=CA_NAME="${CA_NAME}" \
+  --setenv=CA_SAN="--san ${CA_NAME}.${CA_DOMAIN} --san ${CA_IPv4} --san ${CA_IPv6}" \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'step-cli certificate create ${CA_NAME} ${CA_SAN} \
+     "$STEPPATH"/certs/intermediate_ca.csr \
+     "$STEPPATH"/secrets/intermediate_ca_key \
+     --password-file "${CREDENTIALS_DIRECTORY}"/keypass \
+     --csr'
+
+[[ (-f "$ROOT_CA_IMAGE" || -b "$ROOT_CA_IMAGE") && -n "$PASS_ROOT_KEY" ]] || exit 0
+
+systemd-nspawn \
+  --set-credential=keypass:"$PASS_ROOT_KEY" \
+  --bind="${BUILDROOT}/var/lib/step-ca/certs":/mnt \
+  --image="$ROOT_CA_IMAGE" \
+  --as-pid2 sh -c \
+  'step-cli certificate sign \
+     --profile intermediate-ca \
+     --password-file "${CREDENTIALS_DIRECTORY}"/keypass \
+     /mnt/intermediate_ca.csr \
+     /root/root_ca.crt \
+     /root/root_ca.key \
+     > /mnt/intermediate_ca.crt \
+   && cp -v /root/root_ca.crt /mnt \
+   && rm /mnt/intermediate_ca.csr'
+
+cp "$BUILDROOT"/var/lib/step-ca/certs/* mkosi.output
+echo "@cert-authority * $(<"$BUILDROOT"/var/lib/step-ca/certs/ssh_host_ca_key.pub)" > mkosi.output/known_hosts
+chown $(stat -c "%u:%g" mkosi.output) mkosi.output/*
+
+systemd-nspawn \
+  --set-credential=jwkpass:"$PASS_CA_JWK" \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'step-cli ca provisioner add jwk \
+     --ssh \
+     --create \
+     --type JWK \
+     --password-file "${CREDENTIALS_DIRECTORY}"/jwkpass'
+
+systemd-nspawn \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'step-cli ca provisioner add acme --type ACME'
+
+systemd-nspawn \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'cp "$STEPPATH"/certs/ssh_user_ca_key.pub /etc/ssh/'
+
+echo "You'll need to enter this manually 3x: ${PASS_CA_KEY}"
+systemd-nspawn \
+  --set-credential=jwkpass:"$PASS_CA_JWK" \
+  --setenv=CA_NAME="$CA_NAME" \
+  --setenv=CA_DOMAIN="$CA_DOMAIN" \
+  --setenv=NOT_AFTER="$NOT_AFTER" \
+  --setenv=STEPPATH=/var/lib/step-ca \
+  --directory="$BUILDROOT" \
+  --as-pid2 sh -c \
+  'step-cli ssh certificate "${CA_NAME}" /etc/ssh/ssh_host_ecdsa_key \
+     --host --insecure --no-password --offline --force \
+     --not-after "${NOT_AFTER}" \
+     --provisioner jwk \
+     --provisioner-password-file "${CREDENTIALS_DIRECTORY}"/jwkpass'

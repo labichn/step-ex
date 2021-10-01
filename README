@@ -1,0 +1,9 @@
+Run `make -C root-ca` to build the offline root CA.
+
+Run `make -C ca` to build the online intermediate CA.
+
+Run `make -C ca mkosi.output/root_id_ecdsa` to generate a root user keypair and certificate to ssh to the online intermediate CA.
+
+Run the online intermediate CA with `systemd-nspawn -nbi ca/mkosi.output/ca.raw --load-credential=keypass:$PWD/passwords/pass-ca-key`.
+
+SSH to the online intermediate CA with `ssh -o UserKnownHostsFile=ca/mkosi.output/known_hosts -i ca/mkosi.output/root_id_ecdsa root@ca`.
